@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Geospatial Utilities</title>
+<meta name="description" content="Measure a KML boundary and read forty years of climate for any point on Earth, in your browser.">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header>
+  <h1>Geospatial Utilities</h1>
+  <p class="sub">
+    Measure a boundary and read its climate. Drop a KML or paste a location
+    &mdash; the measuring happens in your browser, and the weather comes
+    straight from NASA.
+  </p>
+</header>
+
+<main>
+  <section class="step" id="step-place">
+    <h2><span class="num">1</span> Choose a place</h2>
+
+    <div class="pick">
+      <label class="drop" id="drop-zone">
+        <span class="drop-main">Drop a KML here, or click to choose one</span>
+        <span class="drop-sub">Exported from Google Earth &mdash; polygons are
+          measured, pins are located</span>
+        <input type="file" id="file-input" accept=".kml,.xml">
+      </label>
+
+      <div class="or"><span>or</span></div>
+
+      <div class="typed">
+        <label for="coord-input">Paste coordinates or a Google Maps link</label>
+        <div class="row">
+          <input type="text" id="coord-input" autocomplete="off"
+                 placeholder="23.527537, 90.843139">
+          <button id="btn-locate">Go</button>
+        </div>
+        <p class="hint">
+          <code>23.5275, 90.8431</code>, <code>90.8431&deg;E, 23.5286&deg;N</code>,
+          or a full <code>google.com/maps</code> link &mdash; all read on this
+          device. A shortened <code>maps.app.goo.gl</code> link cannot be
+          followed by a browser: open it first, then paste the address bar.
+        </p>
+        <div class="examples">
+          <span>Try:</span>
+          <button class="chip" data-coord="23.527537, 90.843139">Pond complex, Bangladesh</button>
+          <button class="chip" data-coord="-2.1540, -79.9224">Shrimp farms, Ecuador</button>
+          <button class="chip" data-coord="10.7769, 106.7009">Mekong Delta</button>
+        </div>
+      </div>
+    </div>
+    <span id="place-msg" class="msg"></span>
+  </section>
+
+  <div class="done" id="done-place" hidden>
+    <span class="tick">1</span>
+    <span id="done-place-text"></span>
+    <button id="btn-change-place" class="link">Choose another place</button>
+  </div>
+
+  <div class="tabs" id="tabs" hidden>
+    <button class="tab" id="tab-map" aria-selected="true">Map &amp; geometry</button>
+    <button class="tab" id="tab-climate" aria-selected="false">Climate analysis</button>
+  </div>
+
+  <section class="panel" id="panel-map" hidden>
+    <div class="map-grid">
+      <div>
+        <div id="map" class="map"></div>
+        <p class="help map-help">
+          A kilometre to every side of the centre. Scroll to zoom, drag to pan,
+          and switch between the street map and the satellite view from the
+          layers control in the corner.
+        </p>
+      </div>
+
+      <aside class="side" id="stats">
+        <h3>Geometry</h3>
+        <p class="hint" id="stats-empty">
+          Drop a KML with a polygon in it to measure the area and the perimeter.
+          A single point has a location but no shape.
+        </p>
+        <dl id="stats-list"></dl>
+        <div class="side-actions" id="stats-actions" hidden>
+          <button id="btn-copy-json" class="ghost small">Copy JSON</button>
+          <button id="btn-download-json" class="ghost small">Download JSON</button>
+        </div>
+      </aside>
+    </div>
+
+    <div class="rings" id="rings" hidden>
+      <h3>Polygons in this file</h3>
+      <p class="help">
+        Each row is one ring. Areas are listed per ring and summed above
+        &mdash; if the file overlays copies of other shapes, that total counts
+        the shared water more than once.
+      </p>
+      <div class="table-wrap">
+        <table id="rings-table">
+          <thead>
+            <tr><th>#</th><th>Vertices</th><th>Area (m&sup2;)</th>
+                <th>Area (acres)</th><th>Perimeter (m)</th><th>Show</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-climate" hidden>
+    <div class="controls" id="climate-controls">
+      <div class="control">
+        <label for="range-preset">Range</label>
+        <select id="range-preset">
+          <option value="365">Last year</option>
+          <option value="1825">Last 5 years</option>
+          <option value="3650" selected>Last 10 years</option>
+          <option value="all">Everything since 1981</option>
+          <option value="custom">Custom&hellip;</option>
+        </select>
+      </div>
+      <div class="control" id="custom-range" hidden>
+        <label for="date-start">From</label>
+        <input type="date" id="date-start" min="1981-01-01">
+      </div>
+      <div class="control" id="custom-range-end" hidden>
+        <label for="date-end">To</label>
+        <input type="date" id="date-end" min="1981-01-01">
+      </div>
+      <div class="control">
+        <label for="every">Averaged by</label>
+        <select id="every">
+          <option value="day">Day</option>
+          <option value="month" selected>Month</option>
+          <option value="year">Year</option>
+        </select>
+      </div>
+      <button id="btn-load-climate">Load climate</button>
+      <span id="climate-msg" class="msg"></span>
+    </div>
+
+    <div id="climate-body" hidden>
+      <div class="chart-head">
+        <h3 id="chart-title">Mean Air Temperature</h3>
+        <div class="readout" id="readout"></div>
+      </div>
+      <div class="chart-wrap" id="chart"></div>
+
+      <div class="picker" id="picker">
+        <p class="help">
+          Pick what to plot. Parameters sharing a unit can be shown together;
+          choosing one with a different unit starts a fresh chart, since two
+          units on one axis cannot both be read.
+        </p>
+        <div id="picker-groups"></div>
+      </div>
+
+      <h3 class="summary-head">All fifteen parameters over this range</h3>
+      <div class="table-wrap">
+        <table id="summary-table">
+          <thead>
+            <tr><th>Parameter</th><th>Unit</th><th>Mean</th><th>Min</th>
+                <th>Max</th><th>Days</th><th>Missing</th><th></th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="side-actions">
+        <button id="btn-download-csv" class="ghost small">Download CSV</button>
+        <span class="msg" id="csv-msg"></span>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <p>
+    Boundaries are measured on this device and never uploaded. The only
+    request this page makes about your place is to
+    <a href="https://power.larc.nasa.gov/">NASA POWER</a>, for the climate of
+    the point you chose, and only once you ask for it.
+    <a href="https://github.com/k-byzid/Geospatial-Utilities">Source</a>.
+  </p>
+</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script type="module" src="assets/app.js"></script>
+</body>
+</html>
