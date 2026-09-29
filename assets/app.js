@@ -28,6 +28,7 @@ const state = {
   rows: [],          // rolled up to whatever "every" says
   picked: ["T2M"],
   every: "month",
+  view: null,        // {from, to} over state.rows, or null for the whole range
   map: null,
   layers: [],
   pending: null,     // AbortController for a climate fetch in flight
@@ -382,24 +383,25 @@ async function loadClimate() {
 /** Re-roll the loaded days and redraw everything that reads them. */
 function regroup() {
   state.rows = rollUp(state.climate.rows, state.every);
+  // A view is a pair of positions in state.rows. Re-bucketing moves what those
+  // positions mean, so the zoom is dropped rather than pointing somewhere else.
+  state.view = null;
   drawPicker();
   drawSeries();
   drawSummary();
 }
 
-/* Parameters are plotted together only when their units match -- two units on
- * one axis cannot both be read off it -- so picking across a boundary starts
- * a fresh selection rather than silently rescaling the chart. */
 const unitFor = (code) => unitOf(state.climate.units, code);
 
+/* Any parameters may be plotted together, whatever their units: the chart gives
+ * a second unit its own axis on the right, and three or more are drawn against
+ * their own ranges. Six is the cap because that is how many colours stay apart
+ * from each other. Oldest pick drops out, so the newest click always shows. */
 function togglePick(code) {
-  const [first] = state.picked;
   if (state.picked.includes(code)) {
     if (state.picked.length > 1) state.picked = state.picked.filter((c) => c !== code);
-  } else if (first && unitFor(code) === unitFor(first)) {
-    state.picked = [...state.picked, code].slice(-COLOURS.length);
   } else {
-    state.picked = [code];
+    state.picked = [...state.picked, code].slice(-COLOURS.length);
   }
   drawPicker();
   drawSeries();
@@ -442,17 +444,55 @@ function drawSeries() {
   const series = state.picked.map((code, i) => ({
     code,
     label: nameOf(code),
+    unit: unitFor(code),
     colour: COLOURS[i % COLOURS.length],
     // A total is a quantity that accumulated over the bucket, which reads as
     // a column; a state the day was in reads as a line.
     kind: isTotal(code) ? "bar" : "line",
-    points: state.rows.map((row) => ({ label: row.label, value: row.values[code] })),
+    points: state.rows.map((row) => ({
+      label: row.label,
+      tick: row.tick,
+      shortTick: row.shortTick,
+      group: row.group,
+      value: row.values[code],
+    })),
   }));
 
   $("chart-title").textContent = series.map((s) => s.label).join(" · ");
   drawChart($("chart"), series, {
-    unit: unitFor(state.picked[0]),
+    view: state.view,
+    plotHeight: plotHeight(),
+    onViewChange: (view) => {
+      state.view = view;
+      drawSeries();
+    },
     onHover: (i) => showReadout(i, series),
+  });
+}
+
+/* Full screen is worth having because the chart can use the height as well as
+ * the width: taller means a swing of two degrees is still a visible swing.
+ * What is left over is for the title, readout, legend and the date labels. */
+function plotHeight() {
+  if (document.fullscreenElement !== $("chart-stage")) return undefined;
+  return Math.max(260, window.innerHeight - 190);
+}
+
+function wireFullscreen() {
+  const stage = $("chart-stage");
+  const button = $("btn-fullscreen");
+
+  button.addEventListener("click", () => {
+    if (document.fullscreenElement === stage) document.exitFullscreen();
+    else stage.requestFullscreen().catch(() => say("csv-msg", "Full screen was refused.", "bad"));
+  });
+
+  // Leaving by Escape does not go through the button, and the chart is measured
+  // when it is drawn, so it has to be drawn again at the new size either way.
+  document.addEventListener("fullscreenchange", () => {
+    const on = document.fullscreenElement === stage;
+    button.textContent = on ? "Leave full screen" : "Full screen";
+    if (state.rows.length) drawSeries();
   });
 }
 
@@ -470,10 +510,8 @@ function showReadout(i, series) {
     const swatch = document.createElement("span");
     swatch.className = "swatch";
     swatch.style.background = line.colour;
-    host.append(
-      swatch,
-      document.createTextNode(`${value === null ? "no data" : nf(value, 2)}   `),
-    );
+    const text = value === null ? "no data" : `${nf(value, 2)}${line.unit ? ` ${line.unit}` : ""}`;
+    host.append(swatch, document.createTextNode(`${text}   `));
   }
 }
 
@@ -558,3 +596,4 @@ function wireClimate() {
 wirePlaceInputs();
 wireMapActions();
 wireClimate();
+wireFullscreen();

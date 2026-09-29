@@ -13,6 +13,7 @@
   --warn-ink: #8a6d0b;
   --warn-bg: #fdf3d0;
   --grid: #e6e9ee;
+  --veil: rgba(255, 255, 255, 0.84);
 }
 
 /* Field data gets read at a desk and on a phone in the sun, so the app takes
@@ -33,6 +34,7 @@
     --warn-ink: #e8c86a;
     --warn-bg: #3a3218;
     --grid: #2b313a;
+    --veil: rgba(27, 31, 38, 0.84);
   }
 }
 
@@ -349,8 +351,8 @@ td.missing { color: var(--warn-ink); }
   gap: 10px;
   margin: 18px 0 4px;
 }
-.chart-head h3 { margin: 0; font-size: 15px; }
-.readout { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; min-height: 20px; }
+.chart-head h3 { margin: 0; font-size: 15px; font-weight: 700; }
+.readout { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; min-height: 20px; font-weight: 600; }
 .readout b { color: var(--ink); font-weight: 600; }
 .readout .swatch {
   display: inline-block;
@@ -362,11 +364,79 @@ td.missing { color: var(--warn-ink); }
 
 .chart-wrap { border: 1px solid var(--line); border-radius: 8px; background: var(--sunk); padding: 6px; }
 .chart { display: block; width: 100%; height: auto; touch-action: pan-y; }
+/* Only once part of the range is off screen is there anywhere to drag to. */
+.chart.pannable { cursor: grab; }
+.chart.pannable:active { cursor: grabbing; }
 .chart .grid { stroke: var(--grid); stroke-width: 1; }
-.chart .tick { fill: var(--muted); font-size: 11px; font-family: inherit; }
+/* Date labels carry their own size inline, worked out to fit the width; this
+ * sets the size of the value ticks, which are always the same. */
+.chart .tick { fill: var(--muted); font-size: 11px; font-family: inherit; font-weight: 600; }
+.chart .axis-name { fill: var(--muted); font-size: 10px; font-family: inherit; font-weight: 600; }
+/* The year tier carries the run of months above it, so it reads as the heading
+ * of that run rather than as another tick. */
+.chart .group-tick { fill: var(--ink); font-weight: 700; }
+/* Heavier and darker than a gridline -- this is the one division on the axis
+ * that actually means something changed (a new year), so it is drawn to stand
+ * out from the ticks either side of it rather than blend in with them. */
+.chart .tier { stroke: var(--accent); stroke-width: 2; }
 .chart .cursor { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
 .chart .bar { opacity: .85; }
+.chart .dot { opacity: .9; }
 .chart-empty, .chart-unit { margin: 0; padding: 8px; font-size: 12.5px; color: var(--muted); text-align: center; }
+
+.chart-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  padding: 8px 4px 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.chart-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.legend-item { display: inline-flex; align-items: center; gap: 5px; }
+.legend-item .swatch { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+.chart-hint { margin-left: auto; font-variant-numeric: tabular-nums; }
+
+/* Full screen is where a long record is actually legible: the same chart, with
+ * the room to label every month instead of every third one. The stage holds the
+ * title, readout and legend as well, since a chart with no readout is no more
+ * use large than small. */
+#chart-stage:fullscreen {
+  background: var(--bg);
+  padding: 16px 22px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+#chart-stage:fullscreen .chart-head { margin-top: 0; }
+/* Not a flex row: the foot is a child of the wrap, and side by side it would
+ * take the width the chart is here to use. */
+#chart-stage:fullscreen .chart-wrap { flex: 1; position: relative; }
+
+/* Full screen the legend moves into the corner and out of the way. It reads
+ * through to the plot behind it and passes clicks and drags on, so the chart is
+ * still draggable underneath -- only the reset button takes a press. */
+#chart-stage:fullscreen .chart-foot {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  max-width: 270px;
+  padding: 6px 9px 7px;
+  font-size: 11px;
+  line-height: 1.35;
+  background: var(--veil);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  pointer-events: none;
+}
+#chart-stage:fullscreen .chart-legend { flex-direction: column; gap: 2px; }
+#chart-stage:fullscreen .chart-hint { margin-left: 0; }
+#chart-stage:fullscreen .chart-foot button { pointer-events: auto; margin-top: 2px; }
 
 .picker { margin-top: 14px; }
 .picker .help { margin-bottom: 10px; }

@@ -92,10 +92,47 @@ const keyOf = {
   year: (row) => row.day.slice(0, 4),
 };
 
+/* Month names rather than numbers: "2018-June" is read at a glance, where
+ * "2018-06" has to be decoded. MONTHS is indexed from zero to match the
+ * two-digit month in a key once one is subtracted. */
+export const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+export const SHORT_MONTHS = MONTHS.map((m) => m.slice(0, 3));
+
+const monthOf = (key) => Number(key.slice(4, 6)) - 1;
+
+/* What a bucket is called in full, for the readout and the CSV. */
 const labelOf = {
   day: (key) => `${key.slice(0, 4)}-${key.slice(4, 6)}-${key.slice(6)}`,
-  month: (key) => `${key.slice(0, 4)}-${key.slice(4, 6)}`,
+  month: (key) => `${key.slice(0, 4)}-${MONTHS[monthOf(key)]}`,
   year: (key) => key,
+};
+
+/* The chart labels its axis in two tiers, so a bucket also says what it is
+ * called within its group and what that group is called. A month is "January"
+ * under a "2016"; a day is "15" under a "March 2016". Splitting them this way
+ * keeps the year off every label without losing it: it is written once, under
+ * the run of months it covers. */
+const tickOf = {
+  day: (key) => String(Number(key.slice(6))),
+  month: (key) => MONTHS[monthOf(key)],
+  year: (key) => key,
+};
+
+const shortTickOf = {
+  day: (key) => String(Number(key.slice(6))),
+  month: (key) => SHORT_MONTHS[monthOf(key)],
+  year: (key) => key,
+};
+
+/* Years stand alone, so they have no group above them to sit under. */
+const groupOf = {
+  day: (key) => `${MONTHS[monthOf(key)]} ${key.slice(0, 4)}`,
+  month: (key) => key.slice(0, 4),
+  year: () => null,
 };
 
 /** Roll daily rows up to months or years, one series per parameter.
@@ -123,7 +160,15 @@ export function rollUp(rows, every) {
           values[code] = isTotal(code) ? total : total / present.length;
         }
       }
-      return { key, label: labelOf[every](key), values, days: group.length };
+      return {
+        key,
+        label: labelOf[every](key),
+        tick: tickOf[every](key),
+        shortTick: shortTickOf[every](key),
+        group: groupOf[every](key),
+        values,
+        days: group.length,
+      };
     });
 }
 

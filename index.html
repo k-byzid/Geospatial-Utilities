@@ -145,17 +145,23 @@
     </div>
 
     <div id="climate-body" hidden>
-      <div class="chart-head">
-        <h3 id="chart-title">Mean Air Temperature</h3>
-        <div class="readout" id="readout"></div>
+      <div id="chart-stage">
+        <div class="chart-head">
+          <h3 id="chart-title">Mean Air Temperature</h3>
+          <div class="readout" id="readout"></div>
+          <button id="btn-fullscreen" class="ghost small">Full screen</button>
+        </div>
+        <div class="chart-wrap" id="chart"></div>
       </div>
-      <div class="chart-wrap" id="chart"></div>
 
       <div class="picker" id="picker">
         <p class="help">
-          Pick what to plot. Parameters sharing a unit can be shown together;
-          choosing one with a different unit starts a fresh chart, since two
-          units on one axis cannot both be read.
+          Pick up to six parameters to plot, from any of the groups. A second
+          unit is given its own axis on the right; a third and beyond are drawn
+          each across its own range, so hover the chart to read real values.
+          Scroll on the chart to zoom into a span of dates, drag it to move
+          along, and double-click to go back to the whole range. Full screen
+          gives the record room enough to name every month.
         </p>
         <div id="picker-groups"></div>
       </div>

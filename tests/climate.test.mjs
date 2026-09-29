@@ -33,8 +33,9 @@ test("buckets are labelled and ordered by when they were", () => {
   const spread = rows([
     ["20240315", { T2M: 1 }], ["20240115", { T2M: 2 }], ["20230715", { T2M: 3 }],
   ]);
+  // Named months, and still ordered by when they were rather than by name.
   assert.deepEqual(rollUp(spread, "month").map((r) => r.label),
-    ["2023-07", "2024-01", "2024-03"]);
+    ["2023-July", "2024-January", "2024-March"]);
   assert.deepEqual(rollUp(spread, "year").map((r) => r.label), ["2023", "2024"]);
   assert.deepEqual(rollUp(spread, "day").map((r) => r.label),
     ["2023-07-15", "2024-01-15", "2024-03-15"]);
@@ -69,6 +70,25 @@ test("summarise counts the gaps in a parameter that never reported", () => {
   assert.equal(stat.mean, null);
 });
 
+test("a bucket names itself, its place in its group, and the group", () => {
+  const one = rows([["20240915", { T2M: 1 }]]);
+
+  const [month] = rollUp(one, "month");
+  assert.equal(month.label, "2024-September");
+  assert.equal(month.tick, "September");
+  assert.equal(month.shortTick, "Sep");
+  assert.equal(month.group, "2024");            // written once, under the year
+
+  const [day] = rollUp(one, "day");
+  assert.equal(day.tick, "15");
+  assert.equal(day.group, "September 2024");
+
+  // A year has nothing above it to be grouped under.
+  const [year] = rollUp(one, "year");
+  assert.equal(year.tick, "2024");
+  assert.equal(year.group, null);
+});
+
 test("CSV has a column per parameter and blanks for the gaps", () => {
   const lines = toCsv(rollUp(JANUARY, "month"), "Month").split("\n");
   const header = lines[0].split(",");
@@ -76,7 +96,7 @@ test("CSV has a column per parameter and blanks for the gaps", () => {
   assert.equal(header.length, CODES.length + 1);
 
   const cells = lines[1].split(",");
-  assert.equal(cells[0], "2024-01");
+  assert.equal(cells[0], "2024-January");
   assert.equal(cells[1 + CODES.indexOf("T2M")], "20");
   assert.equal(cells[1 + CODES.indexOf("RH2M")], "");   // never reported
 });
