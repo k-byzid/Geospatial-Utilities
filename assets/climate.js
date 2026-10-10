@@ -94,6 +94,19 @@ function mondayOf(day) {
   return new Date(at - back * 86400000).toISOString().slice(0, 10).replaceAll("-", "");
 }
 
+const addDays = (key, n) => {
+  const at = Date.UTC(+key.slice(0, 4), +key.slice(4, 6) - 1, +key.slice(6, 8)) + n * 86400000;
+  return new Date(at).toISOString().slice(0, 10).replaceAll("-", "");
+};
+
+/* The first and last day a bucket covers, as YYYYMMDD. */
+const spanOf = {
+  day: (key) => [key, key],
+  week: (key) => [key, addDays(key, 6)],
+  month: (key) => [key.slice(0, 6) + "01", key.slice(0, 6) + String(new Date(Date.UTC(+key.slice(0, 4), +key.slice(4, 6), 0)).getUTCDate()).padStart(2, "0")],
+  year: (key) => [key + "0101", key + "1231"],
+};
+
 const keyOf = {
   day: (row) => row.day,
   week: (row) => mondayOf(row.day),
@@ -180,6 +193,8 @@ export function rollUp(rows, every) {
         tick: tickOf[every](key),
         shortTick: shortTickOf[every](key),
         group: groupOf[every](key),
+        start: spanOf[every](key)[0],
+        end: spanOf[every](key)[1],
         values,
         days: group.length,
       };
@@ -189,8 +204,7 @@ export function rollUp(rows, every) {
   return rolled;
 }
 
-/* Weeks are numbered within their month (w-1 is the first Monday in it), and
- * each carries the month and year names the chart shows when zoomed out. */
+/* Weeks are numbered within their month: w-1 is the first Monday in it. */
 function numberWeeks(rows) {
   let month = null;
   let n = 0;
@@ -203,9 +217,6 @@ function numberWeeks(rows) {
     n += 1;
     row.tick = `w-${n}`;
     row.shortTick = row.tick;
-    row.monthTick = n === 1 ? MONTHS[monthOf(row.key)] : "";
-    row.monthShort = n === 1 ? SHORT_MONTHS[monthOf(row.key)] : "";
-    row.yearGroup = row.key.slice(0, 4);
   }
 }
 

@@ -129,6 +129,16 @@ test("a week runs Monday to Sunday, keyed by its Monday, across a year end", () 
   assert.equal(weeks[1].group, "December 2024");
   assert.equal(weeks[2].tick, "w-1");               // first week of January
   assert.equal(weeks[1].tick, "w-2");               // second week of December
-  assert.equal(weeks[2].monthTick, "January");
-  assert.equal(weeks[1].monthTick, "");
+});
+
+test("each bucket knows the first and last day it covers", () => {
+  const days = rows([["20240229", { T2M: 1 }], ["20240306", { T2M: 2 }]]);
+  const [week] = rollUp(days, "week");
+  assert.equal(week.start, "20240226");
+  assert.equal(week.end, "20240303");
+  const [month] = rollUp(days, "month");
+  assert.equal(month.end, "20240229");
+  const [year] = rollUp(days, "year");
+  assert.equal(year.start, "20240101");
+  assert.equal(year.end, "20241231");
 });

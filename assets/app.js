@@ -25,9 +25,9 @@ const COLOURS = ["#2f6fed", "#e07b39", "#14894a", "#b5468f", "#7a5cd0", "#c02a2a
 const state = {
   place: null,       // {lat, lon, name, rings, stats}
   climate: null,     // what fetchClimate returned
-  rows: [],          // rolled up to whatever "every" says
+  rows: [],          // the loaded days rolled up to the level the window needs
+  window: null,      // {from, to} as YYYYMMDD the user is looking at, or null for all
   picked: ["T2M"],
-  every: "month",
   view: null,        // {from, to} over state.rows, or null for the whole range
   map: null,
   layers: [],
@@ -66,6 +66,7 @@ function setPlace({ lat, lon, name, rings = [] }) {
   state.place = { lat: centre[0], lon: centre[1], name, rings, stats };
   state.climate = null;
   state.rows = [];
+  state.window = null;
 
   hide("step-place", "climate-body");
   show("done-place", "tabs");
@@ -360,14 +361,10 @@ async function loadClimate() {
     state.climate = await fetchClimate(lat, lon, start, end, state.pending.signal);
     if (!state.climate.rows.length) throw new Error("No days came back for that range.");
 
-    // A long range plotted a day at a time is thousands of points in a few
-    // hundred pixels, so it is rolled up unless the user asked otherwise.
-    if (state.climate.rows.length > 800 && $("every").value === "day") {
-      $("every").value = "month";
-      state.every = "month";
-    }
-
-    regroup();
+    state.window = null;
+    reaxis();
+    drawPicker();
+    drawSummary();
     show("climate-body");
     const days = state.climate.rows.length;
     say("climate-msg", `${days.toLocaleString()} days loaded.`, "ok");
@@ -380,15 +377,48 @@ async function loadClimate() {
   }
 }
 
-/** Re-roll the loaded days and redraw everything that reads them. */
-function regroup() {
-  state.rows = rollUp(state.climate.rows, state.every);
-  // A view is a pair of positions in state.rows. Re-bucketing moves what those
-  // positions mean, so the zoom is dropped rather than pointing somewhere else.
-  state.view = null;
-  drawPicker();
+/* How much of the record one point stands for depends on how much of it is in
+ * view: days when a couple of months are on screen, weeks up to two years, and
+ * years beyond that. The buckets always cover the whole record at that level,
+ * so the chart can still be panned along it. */
+const DAY_MS = 86400000;
+const utc = (key) => Date.UTC(+key.slice(0, 4), +key.slice(4, 6) - 1, +key.slice(6, 8));
+
+function levelFor(from, to) {
+  const days = (utc(to) - utc(from)) / DAY_MS + 1;
+  if (days < 60) return "day";
+  if (days < 730) return "week";
+  return "year";
+}
+
+/* The buckets that overlap a window of days, as a view over state.rows. */
+function viewFor(rows, window) {
+  if (!window) return null;
+  let from = rows.findIndex((row) => row.end >= window.from);
+  let to = rows.length - 1;
+  while (to > 0 && rows[to].start > window.to) to -= 1;
+  if (from < 0) from = 0;
+  if (to < from) to = from;
+  return from === 0 && to === rows.length - 1 ? null : { from, to };
+}
+
+/** Re-bucket the record for the window on screen and redraw what reads it. */
+function reaxis() {
+  const { rows } = state.climate;
+  const level = state.window
+    ? levelFor(state.window.from, state.window.to)
+    : levelFor(rows[0].day, rows.at(-1).day);
+  state.rows = rollUp(rows, level);
+  state.view = viewFor(state.rows, state.window);
   drawSeries();
-  drawSummary();
+}
+
+/** Called by the chart with the buckets it was zoomed or panned to. */
+function zoomTo(view) {
+  state.window = view
+    ? { from: state.rows[view.from].start, to: state.rows[view.to].end }
+    : null;
+  reaxis();
 }
 
 const unitFor = (code) => unitOf(state.climate.units, code);
@@ -440,31 +470,7 @@ function drawPicker() {
   }
 }
 
-/* With weeks, the axis names what suits the span on screen: years when zoomed
- * right out, months when a year or two is in view, and week numbers within
- * each month once the view is a few months or less. */
-const DAY_MS = 86400000;
-
-function axisLevel(rows, view) {
-  if (state.every !== "week" || !rows.length) return null;
-  const at = (key) => Date.UTC(+key.slice(0, 4), +key.slice(4, 6) - 1, +key.slice(6, 8));
-  const first = rows[view?.from ?? 0];
-  const last = rows[view?.to ?? rows.length - 1];
-  const days = (at(last.key) - at(first.key)) / DAY_MS + 7;
-  if (days > 730) return "year";
-  if (days > 90) return "month";
-  return "week";
-}
-
-function labelsAt(row, level) {
-  if (level === "month") return { tick: row.monthTick, shortTick: row.monthShort, group: row.yearGroup };
-  if (level === "year") return { tick: "", shortTick: "", group: row.yearGroup };
-  if (level === "week") return { tick: row.tick, shortTick: row.tick, group: row.group };
-  return { tick: row.tick, shortTick: row.shortTick, group: row.group };
-}
-
 function drawSeries() {
-  const level = axisLevel(state.rows, state.view);
   const series = state.picked.map((code, i) => ({
     code,
     label: nameOf(code),
@@ -475,7 +481,9 @@ function drawSeries() {
     kind: isTotal(code) ? "bar" : "line",
     points: state.rows.map((row) => ({
       label: row.label,
-      ...labelsAt(row, level),
+      tick: row.tick,
+      shortTick: row.shortTick,
+      group: row.group,
       value: row.values[code],
     })),
   }));
@@ -484,11 +492,7 @@ function drawSeries() {
   drawChart($("chart"), series, {
     view: state.view,
     plotHeight: plotHeight(),
-    upper: level !== "year",
-    onViewChange: (view) => {
-      state.view = view;
-      drawSeries();
-    },
+    onViewChange: zoomTo,
     onHover: (i) => showReadout(i, series),
   });
 }
@@ -594,21 +598,15 @@ function wireClimate() {
     }
   });
 
-  $("every").addEventListener("change", () => {
-    state.every = $("every").value;
-    if (state.climate) regroup();
-  });
-
   $("btn-load-climate").addEventListener("click", loadClimate);
 
   $("btn-download-csv").addEventListener("click", () => {
-    const label = { day: "Date", week: "Week", month: "Month", year: "Year" }[state.every];
     download(
-      `${safeName(state.place.name)}_climate_${state.every}.csv`,
-      toCsv(state.rows, label),
+      `${safeName(state.place.name)}_climate_daily.csv`,
+      toCsv(state.climate.rows, "Date"),
       "text/csv",
     );
-    say("csv-msg", `${state.rows.length} rows saved.`, "ok");
+    say("csv-msg", `${state.climate.rows.length} days saved.`, "ok");
   });
 
   window.addEventListener("resize", () => {

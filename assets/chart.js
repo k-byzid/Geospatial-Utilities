@@ -32,7 +32,6 @@ const MIN_FONT = 10;             // smaller than this is not worth reading
 const MAX_FONT = 13;
 const NEAT = [1, 2, 3, 4, 6, 12];  // label every nth month, on a step that divides a year
 const CHAR = 0.56;               // width of a digit, as a fraction of font size
-const MIN_SPAN = 2;              // fewest buckets a zoom may leave in view
 const DRAG_MIN = 4;              // px of travel before a press counts as a drag
 
 let clipSeq = 0;                 // clip paths are found by id, so it must be new
@@ -194,7 +193,7 @@ function note(host, text, onViewChange) {
  *   plotHeight    how tall to draw the plot; full screen asks for more
  */
 export function drawChart(host, series, {
-  onHover, view = null, onViewChange, plotHeight = PLOT_HEIGHT, upper = true,
+  onHover, view = null, onViewChange, plotHeight = PLOT_HEIGHT,
 } = {}) {
   host.replaceChildren();
   const drawn = series.filter((s) => s.points.some((p) => p.value !== null));
@@ -244,7 +243,7 @@ export function drawChart(host, series, {
   const floor = PAD.top + plotHeight;
   const tickBase = floor + plan.font + 7;
   const groupFont = Math.min(MAX_FONT, plan.font + 1);
-  const groupBase = (upper ? tickBase : floor + 7) + groupFont + 8;
+  const groupBase = tickBase + groupFont + 8;
   const bottom = Math.ceil((runs.length ? groupBase : tickBase) - floor + 7);
   const height = floor + bottom;
 
@@ -336,7 +335,6 @@ export function drawChart(host, series, {
   const startOfGroup = new Map(runs.map((run) => [run.group, run.start]));
   ruler.forEach((point, seen) => {
     const within = seen - (startOfGroup.get(point.group) ?? 0);
-    if (!upper || !plan.form(point)) return;
     if (plan.every > 1 && within % plan.every) return;
     const text = el("text", {
       x: Math.round(x(from + seen)),
@@ -520,7 +518,11 @@ export function drawChart(host, series, {
     svg.addEventListener("wheel", (event) => {
       event.preventDefault();
       const held = clamp(indexAt(localX(event)), from, to);
-      const reach = clamp(span * (event.deltaY > 0 ? 1.3 : 1 / 1.3), MIN_SPAN - 1, total - 1);
+      // Each step moves by whole buckets and always in its direction, so a zoom
+      // cannot stall part-way: from two buckets in, the next step is one.
+      const reach = event.deltaY > 0
+        ? clamp(Math.max(span + 1, Math.ceil(span * 1.3)), 0, total - 1)
+        : clamp(Math.floor(span / 1.3), 0, total - 1);
 
       // Whatever is under the pointer stays under it, so zooming feels like
       // moving a lens rather than jumping somewhere else.
