@@ -161,7 +161,7 @@ export function rollUp(rows, every) {
     buckets.get(key).push(row);
   }
 
-  return [...buckets.entries()]
+  const rolled = [...buckets.entries()]
     .sort(([a], [b]) => (a < b ? -1 : 1))
     .map(([key, group]) => {
       const values = {};
@@ -184,6 +184,29 @@ export function rollUp(rows, every) {
         days: group.length,
       };
     });
+
+  if (every === "week") numberWeeks(rolled);
+  return rolled;
+}
+
+/* Weeks are numbered within their month (w-1 is the first Monday in it), and
+ * each carries the month and year names the chart shows when zoomed out. */
+function numberWeeks(rows) {
+  let month = null;
+  let n = 0;
+  for (const row of rows) {
+    const at = row.key.slice(0, 6);
+    if (at !== month) {
+      month = at;
+      n = 0;
+    }
+    n += 1;
+    row.tick = `w-${n}`;
+    row.shortTick = row.tick;
+    row.monthTick = n === 1 ? MONTHS[monthOf(row.key)] : "";
+    row.monthShort = n === 1 ? SHORT_MONTHS[monthOf(row.key)] : "";
+    row.yearGroup = row.key.slice(0, 4);
+  }
 }
 
 /** Min, max, mean and coverage for one parameter across the rows given. */

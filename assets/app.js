@@ -440,7 +440,31 @@ function drawPicker() {
   }
 }
 
+/* With weeks, the axis names what suits the span on screen: years when zoomed
+ * right out, months when a year or two is in view, and week numbers within
+ * each month once the view is a few months or less. */
+const DAY_MS = 86400000;
+
+function axisLevel(rows, view) {
+  if (state.every !== "week" || !rows.length) return null;
+  const at = (key) => Date.UTC(+key.slice(0, 4), +key.slice(4, 6) - 1, +key.slice(6, 8));
+  const first = rows[view?.from ?? 0];
+  const last = rows[view?.to ?? rows.length - 1];
+  const days = (at(last.key) - at(first.key)) / DAY_MS + 7;
+  if (days > 730) return "year";
+  if (days > 90) return "month";
+  return "week";
+}
+
+function labelsAt(row, level) {
+  if (level === "month") return { tick: row.monthTick, shortTick: row.monthShort, group: row.yearGroup };
+  if (level === "year") return { tick: "", shortTick: "", group: row.yearGroup };
+  if (level === "week") return { tick: row.tick, shortTick: row.tick, group: row.group };
+  return { tick: row.tick, shortTick: row.shortTick, group: row.group };
+}
+
 function drawSeries() {
+  const level = axisLevel(state.rows, state.view);
   const series = state.picked.map((code, i) => ({
     code,
     label: nameOf(code),
@@ -451,9 +475,7 @@ function drawSeries() {
     kind: isTotal(code) ? "bar" : "line",
     points: state.rows.map((row) => ({
       label: row.label,
-      tick: row.tick,
-      shortTick: row.shortTick,
-      group: row.group,
+      ...labelsAt(row, level),
       value: row.values[code],
     })),
   }));
@@ -462,6 +484,7 @@ function drawSeries() {
   drawChart($("chart"), series, {
     view: state.view,
     plotHeight: plotHeight(),
+    upper: level !== "year",
     onViewChange: (view) => {
       state.view = view;
       drawSeries();

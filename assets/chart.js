@@ -194,7 +194,7 @@ function note(host, text, onViewChange) {
  *   plotHeight    how tall to draw the plot; full screen asks for more
  */
 export function drawChart(host, series, {
-  onHover, view = null, onViewChange, plotHeight = PLOT_HEIGHT,
+  onHover, view = null, onViewChange, plotHeight = PLOT_HEIGHT, upper = true,
 } = {}) {
   host.replaceChildren();
   const drawn = series.filter((s) => s.points.some((p) => p.value !== null));
@@ -244,7 +244,7 @@ export function drawChart(host, series, {
   const floor = PAD.top + plotHeight;
   const tickBase = floor + plan.font + 7;
   const groupFont = Math.min(MAX_FONT, plan.font + 1);
-  const groupBase = tickBase + groupFont + 8;
+  const groupBase = (upper ? tickBase : floor + 7) + groupFont + 8;
   const bottom = Math.ceil((runs.length ? groupBase : tickBase) - floor + 7);
   const height = floor + bottom;
 
@@ -336,6 +336,7 @@ export function drawChart(host, series, {
   const startOfGroup = new Map(runs.map((run) => [run.group, run.start]));
   ruler.forEach((point, seen) => {
     const within = seen - (startOfGroup.get(point.group) ?? 0);
+    if (!upper || !plan.form(point)) return;
     if (plan.every > 1 && within % plan.every) return;
     const text = el("text", {
       x: Math.round(x(from + seen)),

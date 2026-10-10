@@ -127,5 +127,8 @@ test("a week runs Monday to Sunday, keyed by its Monday, across a year end", () 
   assert.equal(weeks[1].values.PRECTOTCORR, 8);     // rain is summed
   assert.equal(weeks[1].label, "Week of 2024-12-30");
   assert.equal(weeks[1].group, "December 2024");
-  assert.equal(weeks[2].tick, "6");
+  assert.equal(weeks[2].tick, "w-1");               // first week of January
+  assert.equal(weeks[1].tick, "w-2");               // second week of December
+  assert.equal(weeks[2].monthTick, "January");
+  assert.equal(weeks[1].monthTick, "");
 });
