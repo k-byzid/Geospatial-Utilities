@@ -86,8 +86,17 @@ export const unitOf = (units, code) => units?.[code]?.units ?? "";
 
 /* --------------------------------------------------------------- rolling up */
 
+/* A week runs Monday to Sunday and is keyed by its Monday, so keys still sort
+ * as dates and a week that spans two months or years stays one bucket. */
+function mondayOf(day) {
+  const at = Date.UTC(+day.slice(0, 4), +day.slice(4, 6) - 1, +day.slice(6, 8));
+  const back = (new Date(at).getUTCDay() + 6) % 7;
+  return new Date(at - back * 86400000).toISOString().slice(0, 10).replaceAll("-", "");
+}
+
 const keyOf = {
   day: (row) => row.day,
+  week: (row) => mondayOf(row.day),
   month: (row) => row.day.slice(0, 6),
   year: (row) => row.day.slice(0, 4),
 };
@@ -107,6 +116,7 @@ const monthOf = (key) => Number(key.slice(4, 6)) - 1;
 /* What a bucket is called in full, for the readout and the CSV. */
 const labelOf = {
   day: (key) => `${key.slice(0, 4)}-${key.slice(4, 6)}-${key.slice(6)}`,
+  week: (key) => `Week of ${key.slice(0, 4)}-${key.slice(4, 6)}-${key.slice(6)}`,
   month: (key) => `${key.slice(0, 4)}-${MONTHS[monthOf(key)]}`,
   year: (key) => key,
 };
@@ -118,12 +128,14 @@ const labelOf = {
  * the run of months it covers. */
 const tickOf = {
   day: (key) => String(Number(key.slice(6))),
+  week: (key) => String(Number(key.slice(6))),
   month: (key) => MONTHS[monthOf(key)],
   year: (key) => key,
 };
 
 const shortTickOf = {
   day: (key) => String(Number(key.slice(6))),
+  week: (key) => String(Number(key.slice(6))),
   month: (key) => SHORT_MONTHS[monthOf(key)],
   year: (key) => key,
 };
@@ -131,6 +143,8 @@ const shortTickOf = {
 /* Years stand alone, so they have no group above them to sit under. */
 const groupOf = {
   day: (key) => `${MONTHS[monthOf(key)]} ${key.slice(0, 4)}`,
+  // A week sits under the month its Monday falls in, its tick being that Monday.
+  week: (key) => `${MONTHS[monthOf(key)]} ${key.slice(0, 4)}`,
   month: (key) => key.slice(0, 4),
   year: () => null,
 };

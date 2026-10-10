@@ -579,7 +579,7 @@ function wireClimate() {
   $("btn-load-climate").addEventListener("click", loadClimate);
 
   $("btn-download-csv").addEventListener("click", () => {
-    const label = state.every === "day" ? "Date" : state.every === "month" ? "Month" : "Year";
+    const label = { day: "Date", week: "Week", month: "Month", year: "Year" }[state.every];
     download(
       `${safeName(state.place.name)}_climate_${state.every}.csv`,
       toCsv(state.rows, label),

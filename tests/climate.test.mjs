@@ -107,3 +107,25 @@ test("every code has a readable name", () => {
   }
   assert.equal(CODES.length, 15);
 });
+
+test("a week runs Monday to Sunday, keyed by its Monday, across a year end", () => {
+  // Sat 28 Dec 2024 .. Tue 7 Jan 2025: weeks start Mon 23 Dec, Mon 30 Dec, Mon 6 Jan.
+  const days = rows([
+    ["20241228", { T2M: 10, PRECTOTCORR: 1 }],
+    ["20241229", { T2M: 20, PRECTOTCORR: 1 }],
+    ["20241230", { T2M: 1, PRECTOTCORR: 2 }],
+    ["20241231", { T2M: 2, PRECTOTCORR: 2 }],
+    ["20250101", { T2M: 3, PRECTOTCORR: 2 }],
+    ["20250105", { T2M: 6, PRECTOTCORR: 2 }],
+    ["20250106", { T2M: 7, PRECTOTCORR: 5 }],
+    ["20250107", { T2M: 9, PRECTOTCORR: 5 }],
+  ]);
+  const weeks = rollUp(days, "week");
+  assert.deepEqual(weeks.map((w) => w.key), ["20241223", "20241230", "20250106"]);
+  assert.equal(weeks[0].values.T2M, 15);            // mean of the Sat and Sun
+  assert.equal(weeks[1].values.T2M, 3);             // mean of 1, 2, 3, 6: one week over the new year
+  assert.equal(weeks[1].values.PRECTOTCORR, 8);     // rain is summed
+  assert.equal(weeks[1].label, "Week of 2024-12-30");
+  assert.equal(weeks[1].group, "December 2024");
+  assert.equal(weeks[2].tick, "6");
+});
